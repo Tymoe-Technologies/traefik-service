@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: tymoe-gateway
+    restart: unless-stopped
+    command:
+      # 基础配置
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.file.filename=/etc/traefik/dynamic_conf.yml"
+      - "--providers.file.watch=true"
+      # 入口点
+      - "--entrypoints.web.address=:80"
+      # 日志
+      - "--log.level=INFO"
+      - "--accesslog=true"
+    ports:
+      - "80:80"
+      - "8082:8080" # Traefik Dashboard (内网访问)
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./config/dynamic_conf.yml:/etc/traefik/dynamic_conf.yml:ro"
+    networks:
+      - tymoe-network
+    labels:
+      # Traefik自身的管理界面路由（只能内网访问）
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.ryan.local`)"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=web"
+      - "traefik.http.routers.traefik-dashboard.middlewares=auth-ipwhitelist"
+      # IP白名单中间件（只允许局域网访问Dashboard）
+      - "traefik.http.middlewares.auth-ipwhitelist.ipwhitelist.sourcerange=10.0.0.0/24,100.64.0.0/10"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  tymoe-network:
+    external: true
