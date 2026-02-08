@@ -1,44 +1,49 @@
 http:
   middlewares:
-    # ForwardAuth中间件
     tymoe-auth-gate:
       forwardAuth:
-        address: "http://auth-service:8080/api/auth-service/v1/auth/gateway-check"
-        trustForwardHeader: true
+        address: http://auth-service:8080/api/auth-service/v1/auth/gateway-check
         authResponseHeaders:
-          - "X-User-Id"
-          - "X-User-Type"
-          - "X-User-Role"
-          - "X-Org-Id"
-          - "X-Org-Name"
-          - "X-Device-Id"
-
+        - X-User-Id
+        - X-User-Type
+        - X-User-Role
+        - X-Org-Id
+        - X-Org-Name
+        - X-Device-Id
+        trustForwardHeader: true
   routers:
     auth-service-router:
-      rule: "PathPrefix(`/api/auth-service`)"
+      entryPoints:
+      - web
+      middlewares:
+      - tymoe-auth-gate
+      rule: PathPrefix(`/api/auth-service`)
       service: auth-service-test
+    booking-service-protected:
       entryPoints:
-        - web
-      # 暂时禁用中间件验证转发
+      - web
       middlewares:
-        - tymoe-auth-gate
-    
+      - tymoe-auth-gate
+      rule: Host(`api.tymoe.com`) && PathPrefix(`/api/booking-service/v1`) && !PathPrefix(`/api/booking-service/v1/public`)
+      service: booking-service
+    booking-service-public:
+      entryPoints:
+      - web
+      rule: Host(`api.tymoe.com`) && PathPrefix(`/api/booking-service/v1/public`)
+      service: booking-service
     subscription-service-router:
-      rule: "PathPrefix(`/api/subscription-service`)"
-      service: subscription-service-test
       entryPoints:
-        - web
-      # 暂时禁用中间件验证转发
+      - web
       middlewares:
-        - tymoe-auth-gate
-
+      - tymoe-auth-gate
+      rule: PathPrefix(`/api/subscription-service`)
+      service: subscription-service-test
   services:
     auth-service-test:
       loadBalancer:
         servers:
-          - url: "http://auth-service:8080"
-    
+        - url: http://auth-service:8080
     subscription-service-test:
       loadBalancer:
         servers:
-          - url: "http://subscription-service:8088"
+        - url: http://subscription-service:8088
